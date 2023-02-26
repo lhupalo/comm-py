@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.special import erfc
-from matplotlib.pyplot import plt
+import matplotlib.pyplot as plt
 
 def qpsk(num_bits, EbN0_dBs):
     """Realiza simulação de uma transmissão QPSK através de um canal AWGN.
