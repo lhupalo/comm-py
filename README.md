@@ -1,2 +1,3 @@
-# comm-py
-Notas de aula de comunicações digital e comunicações sem fio.
+# Py-Communications
+
+Notas de aula sobre comunicações digitais e comunicações sem fio.
