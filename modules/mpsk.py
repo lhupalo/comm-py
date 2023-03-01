@@ -106,7 +106,7 @@ def qpsk(num_bits, EbN0_dBs):
     BER = num_errors_bit/num_bits
     SER = num_errors_symb/num_symbols
 
-    return BER, SER
+    return BER, SER, r
 
 
 def bpsk(num_bits, EbN0_dBs):
@@ -148,9 +148,62 @@ def bpsk(num_bits, EbN0_dBs):
     BER = num_errors/num_bits
     SER = BER
     
-    return BER, SER
+    return BER, SER, r
 
-def PlotBER_SER(EbN0_dBs, BER, SER, M):
+def PlotConstellation(num_bits, EbN0_range, M):
+    """Faz o plot do diagrama de constelação para uma modulação PSK de ordem M
+
+    Args:
+        num_bits (integer): Número de bits de informação a serem utilizados na simulação.
+        EbN0_range (list): Lista das 3 SNRs a serem plotadas. 
+        M (integer): Ordem da modulação PSK
+    """
+
+    if M == 2:
+        recebidos = []
+        for i in range(len(EbN0_range)):
+
+            ber,ser,r = bpsk(num_bits, [EbN0_range[i]])
+
+            # downsample em 1e4 vezes para ajudar na visualização do efeito da SNR
+            r = r[::10000]
+
+            # cria um array com valores y iguais a zero
+            y = np.zeros_like(r)
+
+            recebidos.append(r)
+
+        # cria um array booleano para identificar os valores x positivos
+        mask0 = recebidos[0] > 0
+        mask1 = recebidos[1] > 0
+        mask2 = recebidos[2] > 0
+
+        # Cria figura e subplots
+        fig, axs = plt.subplots(1, 3, figsize=(14,4), sharex=False)
+
+        axs[0].scatter(recebidos[0][mask0], y[mask0], color='red')
+        axs[0].scatter(recebidos[0][~mask0], y[~mask0], color='blue')
+        axs[0].set_ylabel('Q')
+        axs[0].set_xlabel('I')
+        axs[0].set_title('Eb/N0 = ' + str(EbN0_range[0]) + ' dB')
+
+        axs[1].scatter(recebidos[1][mask1], y[mask1], color='red')
+        axs[1].scatter(recebidos[1][~mask1], y[~mask1], color='blue')
+        axs[1].set_ylabel('Q')
+        axs[1].set_xlabel('I')
+        axs[1].set_title('Eb/N0 = ' + str(EbN0_range[1]) + ' dB')
+
+        axs[2].scatter(recebidos[2][mask2], y[mask2], color='red')
+        axs[2].scatter(recebidos[2][~mask2], y[~mask2], color='blue')
+        axs[2].set_ylabel('Q')
+        axs[2].set_xlabel('I')
+        axs[2].set_title('Eb/N0 = ' + str(EbN0_range[2]) + ' dB')
+
+        plt.subplots_adjust(wspace=0.4)
+        plt.show()
+    
+
+def PlotBER_SER(num_bits, EbN0_dBs, M):
     """Faz o plot das curvas de BER e SER simuladas e teóricas, tendo como entrada os valores da simulação.
 
     Args:
@@ -160,9 +213,14 @@ def PlotBER_SER(EbN0_dBs, BER, SER, M):
         M (integer): Ordem da modulação. Ex.: BPSK -> M = 2, 2-PSK
     """    
     
-    if bool(M == 2) | bool(M == 4):
+    if M == 2:
         teorico_ber = 0.5 * erfc(np.sqrt(10**(EbN0_dBs/10)))
         teorico_ser = 1 - (1 - 0.5 * erfc(np.sqrt(10**(EbN0_dBs/10))))**np.log2(M)
+        BER, SER, r = bpsk(num_bits, EbN0_dBs)
+    elif M == 4:
+        teorico_ber = 0.5 * erfc(np.sqrt(10**(EbN0_dBs/10)))
+        teorico_ser = 1 - (1 - 0.5 * erfc(np.sqrt(10**(EbN0_dBs/10))))**np.log2(M)
+        BER, SER, r = qpsk(num_bits, EbN0_dBs)
     elif M == 8:
         teorico_ber = (1/3) * erfc(np.sqrt((4/10) * 10**(EbN0_dBs/10)) * np.sin(np.pi/8))
         teorico_ser = 1 - (1 - (1/3) * erfc(np.sqrt((4/10) * 10**(EbN0_dBs/10)) * np.sin(np.pi/8)))**np.log2(M)
@@ -188,4 +246,71 @@ def PlotBER_SER(EbN0_dBs, BER, SER, M):
     axs[1].legend()
 
     # Exibe os plots
+    plt.show()
+
+
+def PlotWaveforms(bits_seq, fc, EbN0):
+    """Plota as etapas da modulação e transmissão BPSK em banda passante
+
+    Args:
+        bits_seq (array): Sequência de bits de informação em banda base
+        fc (integer): Frequência do sinal da portadora em Hertz
+        EbN0 (floar): SNR da transmissão. Quanto mais baixa, pior o canal AWGN 
+    """
+
+    # Sinal transmitido obtido através da modulação do vetor de bits de informação
+    bpsk_seq = np.round(2*bits_seq-1)
+
+    # Duração de cada período da portadora em segundos
+    Tc = 1/fc
+
+    # Tempo de amostragem em segundos
+    Ts = Tc/100
+
+    # Número de amostras por período da portadora
+    N = int(Tc/Ts)
+
+    # Período da portadora correspondente a -1
+    cos_neg = np.cos(2*np.pi*fc*np.arange(N)*Ts)
+
+    # Período da portadora correspondente a 1
+    cos_pos = np.cos(2*np.pi*fc*np.arange(N)*Ts + np.pi)
+
+    # Sequência de símbolos modulada
+    bpsk_mod = np.concatenate([cos_neg if s==-1 else cos_pos for s in bpsk_seq])
+
+    # Eixo do tempo
+    t = np.arange(len(bpsk_mod))*Ts
+
+    # Variância do sinal transmitido e adição de ruído AWGN
+    var = (1/np.sqrt(2))*10**(-EbN0/20)
+    noise = np.random.normal(0, var, len(t))
+
+    # Cria figura e subplots
+    fig, axs = plt.subplots(4, 1, figsize=(8, 6), sharex=False)
+
+    # Plota no primeiro subplot
+    axs[0].step(np.arange(0,len(bits_seq)),np.array(bits_seq))
+    axs[0].set_ylabel('Amplitude')
+    axs[0].set_title('Sinal de Informação em Banda Base (duração bit = 1 s)')
+
+    axs[1].step(np.arange(0,len(bpsk_seq)),np.array(bpsk_seq))
+    axs[1].set_ylabel('Amplitude')
+    axs[1].set_title('Bits mapeados para símbolos BPSK')
+
+    # Plota no segundo subplot
+    axs[2].plot(t, bpsk_mod)
+    axs[2].set_title('Sinal Modulado Transmitido em Banda Passante ($f_c$ = ' + str(fc/1000) + ' kHz)')
+    axs[2].set_ylabel('Amplitude')
+
+    # Plota no terceiro subplot
+    axs[3].plot(t, noise+bpsk_mod)
+    axs[3].set_title('Sinal Ruidoso Recebido ($f_c$ = ' + str(fc/1000) + ' kHz, EbN0 = ' + str(EbN0) + ' dB)')
+    axs[3].set_xlabel('Tempo (s)')
+    axs[3].set_ylabel('Amplitude')
+
+
+    plt.subplots_adjust(hspace=0.8)
+
+    # Exibe o plot
     plt.show()
